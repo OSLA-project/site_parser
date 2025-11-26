@@ -22,7 +22,3 @@ Options:
 # Notebook
 
   See the [tutorial](docs/tutorial.ipynb).
-
-# Bugs
-
-- [ ] PyVis doesn't show the graph in a notebook.🤔
