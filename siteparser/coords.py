@@ -8,13 +8,27 @@ class Coords:
     def __init__(
         self,
         label: str = "",
-        coords: list | tuple | np.ndarray | None = None,
+        coords: list | tuple | np.ndarray | Coords | None = None,
+        origin: list | tuple | np.ndarray | Coords | None = None,
     ):
 
         self.label = label
+        self.coords = self._numpify(coords)
+        self.origin = self._numpify(origin)
 
-        # Sanity checks
-        # ==================================================
+    def _numpify(self, coords: list | tuple | np.ndarray | None = None) -> np.ndarray:
+        """
+        Ensure that coordinates are represented as NumPy arrays.
+
+        Args:
+            coords: Coordinates (x, y, z, roll, pitch, yaw).
+
+        Raises:
+            AttributeError: Raised if the coordinates do not follow the expected format.
+
+        Returns:
+            The coordinates as a NumPy array.
+        """
         _dtype = np.float32
         if coords is None:
             coords = np.zeros((6,), dtype=_dtype)
@@ -22,31 +36,35 @@ class Coords:
         elif isinstance(coords, (list, tuple)):
             coords = np.array(coords, dtype=_dtype)
 
+        elif isinstance(coords, Coords):
+            coords = deepcopy(coords.coords)
+
         if len(coords) != 6:
             raise AttributeError(
                 f"Invalid coordinate vector: expected size is 6, got {len(coords)}"
             )
 
-        # Preempt weirdness
-        self.coords = deepcopy(coords)
+        # Deep-copy the array to preempt weirdness
+        return deepcopy(coords)
 
     def get_node_args(
         self,
-        origin: np.ndarray | None = None,
+        *offsets: list[Coords],
     ) -> dict:
         """
-        Construct an argument dictionary for constructing
-        NetworkX-compatible representation of the coordinates,
-        optionally relative to an origin point.
+        Construct an argument dictionary for nodes in a
+        NetworkX-compatible representation of the coordinates.
+
+        Optionally takes a list of Coord objects as relative offsets.
 
         Returns:
-            An dictionary.
+            A dictionary of NetworkX node properties.
         """
         coords = ["x", "y", "z", "roll", "pitch", "yaw"]
 
-        arr = deepcopy(self.coords)
-        if origin is not None:
-            arr += origin
+        arr = deepcopy(self.coords) + self.origin
+        for offset in offsets:
+            arr += offset.coords
 
         return dict(zip(coords, arr.tolist()))
 
