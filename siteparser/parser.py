@@ -214,10 +214,11 @@ class SiteParser:
         net = None
         if visualise:
             net = Network(
-                # height="900px",
-                # width="100%",
                 bgcolor="#222222",
                 font_color="#ffffff",
+                layout="hierarchical",
+                select_menu=True,
+                filter_menu=True,
             )
             net.from_nx(g)
             net.show_buttons()
