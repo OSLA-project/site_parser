@@ -21,11 +21,10 @@ class Dev:
     side: str | None = None
     action: str | None = None
     origin: Coords = Coords()
-    entrypoint: Coords = Coords()
-    plate_path: dict = field(default_factory=dict)
+    plate_path: list = field(default_factory=list)
     relatives: Relatives | None = None
 
-    def _parse_plate_path(self, data: dict) -> dict:
+    def _parse_plate_path(self, data: dict | None) -> dict:
         """
         Parse a plate path specification.
 
@@ -33,9 +32,19 @@ class Dev:
             data: A dictionary of integer positions and locations as 6-DoF arrays.
 
         Returns:
-            A plate path dictionary.
+            A list of plate path coordinates.
         """
-        return {int(k): Coords(v) for k, v in data.items()}
+
+        if data is None:
+            return []
+        return [
+            Coords(
+                f"ppath_{i}",
+                data[str(i)],
+                self.origin,
+            )
+            for i in range(1, len(data) + 1)
+        ]
 
     def _parse_relatives(self, data: dict):
         """
@@ -53,8 +62,9 @@ class Dev:
         """
         relatives = Relatives(
             entrypoint=Coords(
-                f"{self.label}_entrypoint",
+                f"entrypoint",
                 data.pop("entrypoint"),
+                self.origin,
             )
         )
         positions = [data.get(f"pos{i+1}") for i in range(len(data))]
@@ -62,8 +72,9 @@ class Dev:
             if pos is not None:
                 relatives.positions.append(
                     Coords(
-                        f"{self.label}_pos_{pos_idx+1}",
+                        f"pos_{pos_idx+1}",
                         pos,
+                        self.origin,
                     )
                 )
 
@@ -92,24 +103,23 @@ class Dev:
         self._parts = []
 
     def _process_children(self):
-        for k, v in self._children.items():
-            match k:
-                case "origin":
-                    self.origin = Coords(f"{self.label}_origin", v)
-                case "entrypoint":
-                    self.entrypoint = Coords(f"{self.label}_entrypoint", v)
-                case "plate_path":
-                    self.plate_path = self._parse_plate_path(v)
-                case "relatives":
-                    self.relatives = self._parse_relatives(v)
+
+        # Populate the origin, plate path and relative positions.
+        self.origin = Coords(f"origin", self._children.get("origin"))
+        self.plate_path = self._parse_plate_path(self._children.get("plate_path"))
+        self.relatives = self._parse_relatives(self._children.get("relatives"))
 
         # Reset the child entries
         self._children = {}
 
     def __post_init__(self):
+        """
+        Process the parts of the specification and the child nodes.
+        """
 
         self._process_parts()
 
+        # Create a predictable label
         self.label = "_".join(
             [
                 item
