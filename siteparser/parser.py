@@ -53,7 +53,9 @@ class SiteParser:
             "Action",
             "Relative positions",
             "Origin",
-            "Entrypoint",
+            "Plate path nodes",
+            "Relative entrypoint",
+            "Relative positions",
         )
         con = Console()
 
@@ -67,7 +69,9 @@ class SiteParser:
                 dev.action,
                 str(len(dev.relatives.positions)),
                 str(dev.origin),
-                str(dev.entrypoint),
+                str(len(dev.plate_path)),
+                str(dev.relatives.entrypoint),
+                str(len(dev.relatives.positions)),
             )
 
         con.print(tbl)
@@ -140,8 +144,7 @@ class SiteParser:
         self,
         output: str | Path | None = None,
         visualise: bool = False,
-        notebook: bool = False,
-        browser: bool = True,
+        skip_disconnected: bool = True,
     ) -> nx.Graph:
         """
         Construct a NetworkX graph from the specification.
@@ -149,8 +152,7 @@ class SiteParser:
         Args:
             output: File for saving the graph in GML format.
             visualise: Visualise the graph using PyVis.
-            notebook: Visualise inside a Jupyter notebook.
-            browser: Visualise in a browser.
+            skip_disconnected: Don't add disconnected nodes to the GML graph.
 
         Returns:
             A NetworkX graph.
@@ -160,62 +162,70 @@ class SiteParser:
 
         connected_devs = set()
         for edge in self.edges:
-            connected_devs = connected_devs.union(set([edge.src.label, edge.tgt.label]))
-
-        for dev_label, dev in self.devices.items():
-
-            # if dev_label not in connected_devs:
-            #     # Don't process disconnected devices
-            #     continue
-
-            entry_args = dev.entrypoint.get_node_args(dev.origin.coords)
-            g.add_node(dev.relatives.entrypoint.label, **entry_args)
-
-            for pos_idx, pos in enumerate(dev.relatives.positions):
-                # pos_id = g.number_of_nodes()
-                pos_args = pos.get_node_args(dev.origin.coords)
-
-                g.add_node(pos.label, **pos_args)
-
-                # Add the edge from the entrypoint
-                g.add_edge(
-                    dev.relatives.entrypoint.label,
-                    pos.label,
-                )
-
-        for edge in self.edges:
 
             # Add the edge from source to the target
-            src_rel = edge.src.relatives
-            tgt_rel = edge.tgt.relatives
-            src_args = src_rel.entrypoint.get_node_args(edge.src.origin.coords)
-            tgt_args = tgt_rel.entrypoint.get_node_args(edge.tgt.origin.coords)
-            g.add_node(src_rel.entrypoint.label, **src_args)
-            g.add_node(tgt_rel.entrypoint.label, **tgt_args)
+            src_ep = edge.src.relatives.entrypoint
+            src_label = "_".join([edge.src.label, src_ep.label])
 
-            g.add_edge(
-                src_rel.entrypoint.label,
-                tgt_rel.entrypoint.label,
-            )
+            tgt_ep = edge.tgt.relatives.entrypoint
+            tgt_label = "_".join([edge.tgt.label, tgt_ep.label])
+            g.add_edge(src_label, tgt_label)
+
+            connected_devs.add(src_label)
+            connected_devs.add(tgt_label)
+
+        for dev in self.devices.values():
+
+
+            pos = dev.relatives.entrypoint
+            label = "_".join([dev.label, pos.label])
+            if skip_disconnected and label not in connected_devs:
+                continue
+
+            args = pos.get_node_args()
+            g.add_node(label, **args)
+            ep_node = label
+
+            for pos in dev.relatives.positions:
+
+                # Start from the entrypoint
+                cur_node = ep_node
+
+                # Plate path nodes (if any)
+                for ppath in dev.plate_path:
+                    args = ppath.get_node_args(pos)
+                    label = "_".join([dev.label, pos.label, ppath.label])
+                    g.add_node(label, **args)
+                    next_node = label
+                    g.add_edge(cur_node, next_node)
+                    cur_node = next_node
+
+                args = pos.get_node_args()
+                label = "_".join([dev.label, pos.label])
+                g.add_node(label, **args)
+                next_node = label
+
+                # Add an edge to the position
+                g.add_edge(cur_node, next_node)
 
         if output is not None:
             nx.write_gml(g, Path(output).resolve().absolute())
 
+        net = None
         if visualise:
             net = Network(
-                notebook=notebook,
-                height="900px",
-                width="100%",
+                # height="900px",
+                # width="100%",
                 bgcolor="#222222",
                 font_color="#ffffff",
-                cdn_resources="in_line" if notebook else "local",
             )
             net.from_nx(g)
-            with tempfile.TemporaryDirectory() as tmp_dir:
+            net.show_buttons()
+            with tempfile.TemporaryDirectory(delete=False) as tmp_dir:
                 net.write_html(
                     str(Path(tmp_dir) / f"paths-{uuid4()}.html"),
-                    open_browser=browser,
-                    notebook=notebook,
+                    open_browser=True,
+                    notebook=False,
                 )
 
-        return g
+        return g, net
