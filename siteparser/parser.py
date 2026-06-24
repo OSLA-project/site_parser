@@ -176,7 +176,6 @@ class SiteParser:
 
         for dev in self.devices.values():
 
-
             pos = dev.relatives.entrypoint
             label = "_".join([dev.label, pos.label])
             if skip_disconnected and label not in connected_devs:
@@ -219,6 +218,7 @@ class SiteParser:
                 layout="hierarchical",
                 select_menu=True,
                 filter_menu=True,
+                cdn_resources="remote",
             )
             net.from_nx(g)
             net.show_buttons()
