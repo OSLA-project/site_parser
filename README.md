@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1100601956.svg)](https://doi.org/10.5281/zenodo.21340477)
+
 # Overview
 This is an auxiliary package for OSLA project at the VU Lab. It parses device location specifications in JSON format and outputs a graph that can be used by the scheduler / orchestrator combo from OpenLabAutomation. The graph is a tree representing the nodes of actual devices (leaf nodes) and intermediate steps along the way (virtual nodes).
 
